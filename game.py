@@ -3,6 +3,10 @@ import random
 from character import Character, CLASSES, exp_required
 from items import show_shop, equip_item, ALL_ITEMS
 from combat import run_battle, AREA_ENEMIES, AREA_BOSS
+from story import (
+    prologue, on_first_visit, boss_intro, boss_outro,
+    final_ending, talk_to_npc, NPCS,
+)
 
 # ── 地圖定義 ─────────────────────────────────────────────
 WORLD_MAP = {
@@ -129,7 +133,7 @@ def show_area(area_name, area_data):
     print(f"╚{'═'*40}")
 
 
-def area_menu(character, area_name, world):
+def area_menu(character, area_name, world, visited=None):
     """區域主選單，回傳下一個區域名稱或特殊指令"""
     area_data = world[area_name]
     show_area(area_name, area_data)
@@ -150,6 +154,9 @@ def area_menu(character, area_name, world):
     # 移動
     for conn in area_data.get("connections", []):
         options.append((f"前往 {conn}", f"移動到 {conn}"))
+    # NPC 對話
+    if NPCS.get(area_name):
+        options.append(("交談", "與此地的 NPC 交談"))
     # 通用
     options.append(("查看角色", "查看角色狀態"))
     options.append(("背包", "管理背包道具"))
@@ -186,14 +193,19 @@ def area_menu(character, area_name, world):
                 if confirm != "y":
                     continue
             boss_name = area_data["boss"]
+            boss_intro(boss_name, character)
             result = run_battle(character, boss_name, is_boss=True)
             if result == "lose":
                 return "__lose__"
             elif result == "win":
                 area_data["boss_defeated"] = True
-                print(f"  ✦ {boss_name} 已被擊敗！{area_name}的封印解除了。")
                 if area_name == "魔王城堡":
                     return "__win__"
+                boss_outro(boss_name, character)
+
+        # ── NPC 交談 ──
+        elif action == "交談":
+            talk_to_npc(area_name)
 
         # ── 商店 ──
         elif action == "商店":
@@ -325,15 +337,19 @@ def run_game():
 
     current_area = "新手村"
     world = {k: dict(v) for k, v in WORLD_MAP.items()}
+    visited = set()
 
-    print(f"\n  【故事開始】")
-    print("  黑暗正在侵蝕大地，怪物們紛紛出沒，")
-    print("  傳說只有打倒魔王才能拯救世界。")
-    print("  你，是否願意踏上這段旅程？\n")
-    input("  按 Enter 開始冒險…")
+    # 開場序幕
+    prologue(character)
 
     while True:
-        result = area_menu(character, current_area, world)
+        # 初次進入區域劇情
+        if current_area not in visited:
+            visited.add(current_area)
+            if current_area != "新手村":
+                on_first_visit(current_area, character)
+
+        result = area_menu(character, current_area, world, visited)
 
         if result == "__lose__":
             print("\n  ╔══════════════════════╗")
@@ -346,14 +362,7 @@ def run_game():
             return
 
         elif result == "__win__":
-            print("\n  ╔═══════════════════════════════╗")
-            print("  ║   C O N G R A T U L A T I O N S  ║")
-            print("  ╚═══════════════════════════════╝")
-            print(f"\n  {character.name} 打敗了魔王！")
-            print("  黑暗消散，大地重現光明。")
-            print(f"  最終等級：Lv.{character.level}")
-            print(f"  餘下金幣：{character.gold} 金")
-            print("\n  感謝你的遊玩，英雄！\n")
+            final_ending(character)
             input("  按 Enter 返回主選單…")
             run_game()
             return
